@@ -10,11 +10,22 @@ import {
   View,
   TextInput,
   Picker,
+  Animated,
+  Keyboard,
+  KeyboardAvoidingView,
+  TouchableNativeFeedback,
+  Vibration
 } from 'react-native';
 import { WebBrowser } from 'expo';
 import { Dropdown } from "react-native-material-dropdown";
+import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 
 import { MonoText } from '../components/StyledText';
+
+const options = {
+  enableVibrateFallback: true,
+  ignoreAndroidSystemSettings: false
+};
 
 export default class HomeScreen extends React.Component {
   static navigationOptions = {
@@ -23,8 +34,43 @@ export default class HomeScreen extends React.Component {
 
   constructor(props){
     super(props);
-    this.state = { text: 'http://localhost:3000/postExample', request: '', result: '', tabBarIsVisible: false, objListIsVisible: false, objText: '{ “Key” : “Value” }' };
+    this.paddingInput = new Animated.Value(0);
+    this.state = { 
+      text: 'https://shrouded-ravine-84811.herokuapp.com/postExample', 
+      request: '', 
+      result: '', 
+      tabBarIsVisible: false, 
+      objListIsVisible: false, 
+      objText: '{ “Key” : “Value” }',
+      keyboardTabBarIsVisible: false, 
+    };
   }
+
+  componentWillMount() {
+    this.keyboardWillShowSub = Keyboard.addListener('keyboardWillShow', this.keyboardWillShow);
+    this.keyboardWillHideSub = Keyboard.addListener('keyboardWillHide', this.keyboardWillHide);
+}
+
+componentWillUnmount() {
+    this.keyboardWillShowSub.remove();
+    this.keyboardWillHideSub.remove();
+}
+
+keyboardWillShow = (event) => {
+    Animated.timing(this.paddingInput, {
+        duration: event.duration,
+        toValue: 60,
+    }).start();
+    this.setState({keyboardTabBarIsVisible: true})
+};
+
+keyboardWillHide = (event) => {
+    Animated.timing(this.paddingInput, {
+        duration: event.duration,
+        toValue: 0,
+    }).start();
+    this.setState({keyboardTabBarIsVisible: false})
+};
 
   showTabBar(isVisible){
     if(isVisible){
@@ -49,6 +95,7 @@ export default class HomeScreen extends React.Component {
     }
     if(data != undefined){
       console.log("Success");
+      this.setState({result: ''});
       fetch(this.state.text, {
         method: 'POST',
         headers: {
@@ -67,7 +114,7 @@ export default class HomeScreen extends React.Component {
   }
 
   showObjList(){
-    if(this.state.showObjList){
+    if(this.state.showObjList && this.state.request == 'POST'){
       return (
         <View>
           <Text style={styles.smallTextLabel}>BODY:</Text>
@@ -99,11 +146,61 @@ export default class HomeScreen extends React.Component {
       )}
   }
 
-  requestTypeSet(request){
-    (request) => this.setState({request});
+  keyboardTabBar = (showTabBar) => {
+    if(showTabBar){
+      return(
+        <KeyboardAvoidingView behavior='padding' style={{ flex: 0.1, }} keyboardVerticalOffset={
+          Platform.select({
+             ios: () => 0,
+             android: () => 200
+          })()} enabled>
+            <Animated.View style={{ marginBottom: this.paddingInput }}>
+              <View style={styles.keyboardTabBar}>
+                {this.tabItems()}
+              </View>
+            </Animated.View>
+        </KeyboardAvoidingView>
+      )
+    }
+  }
+
+  requestTypeSet(newRequest){
+    this.setState({request: newRequest});
     this.setState({tabBarIsVisible: true});
-    if(request == "POST"){
+    if(newRequest == "POST"){
       this.setState({showObjList: true})
+    }
+  }
+
+  tabItems = () => {
+    if(this.state.request == 'POST'){
+      return (
+        <View style={{
+          flexWrap: 'wrap', 
+          alignItems: 'flex-start',
+          flexDirection:'row',}}>
+          <TouchableOpacity style={{ left: '2%', height: 40, width: '12%', backgroundColor: '#eb4d4b', borderRadius: 15, shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.5,
+            shadowRadius: 2, justifyContent: 'center',
+            alignItems: 'center'}}
+            onPress={() => {
+              this.setState({objText: (this.state.objText + '{')});
+            }}>
+            <Text style={{color: '#FFFFFF', textAlign: "center"}}>{'{'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={{ left: '5%', height: 40, width: '12%', backgroundColor: '#eb4d4b', borderRadius: 15, shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.5,
+            shadowRadius: 2, justifyContent: 'center',
+            alignItems: 'center'}}
+            onPress={() => {
+              this.setState({objText: (this.state.objText + '}')});
+            }}>
+            <Text style={{color: '#FFFFFF', textAlign: "center"}}>{'}'}</Text>
+          </TouchableOpacity>
+
+        </View>
+      )
     }
   }
 
@@ -143,6 +240,7 @@ export default class HomeScreen extends React.Component {
           </View>
         </ScrollView>
         {this.showTabBar(this.state.tabBarIsVisible)}
+        {this.keyboardTabBar(this.state.keyboardTabBarIsVisible)}
       </View>
     );
   }
@@ -152,6 +250,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  keyboardTabBar: {
+    //height: 50,
+    width: '100%',
   },
   smallTextLabel:{marginTop: 30, fontSize: 10, color: "#111111"},
   developmentModeText: {
